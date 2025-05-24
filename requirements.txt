@@ -1,0 +1,7 @@
+fastmcp
+dotenv
+python3-nmap
+asyncio
+typing
+contextlib
+langchain_openai
