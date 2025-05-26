@@ -35,9 +35,8 @@ async def service_version(target: str) -> str:
     description="Perform a full scan on the target host",
 )
 async def full_scan(target: str) -> str:
-    scan_results = nmap.nmap_version_detection(target)
+    scan_results = nmap.nmap_version_detection(target, args="--script vulners -A -T4")
     result = json.dumps(scan_results)
-    print(result)
     return result
 
 @app.tool(

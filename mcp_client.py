@@ -17,30 +17,30 @@ class MCPClient:
     def __init__(self):
         self.exit_stack = AsyncExitStack()
         self.chat = OpenAI(api_key=API_KEY, base_url="https://api.deepseek.com")
+        self.messages = []  # Persistent conversation history
 
     async def connect_to_server(self):
         self.client = await self.exit_stack.enter_async_context(Client(http_url))
         tools = await self.client.list_tools()
 
         print("\nConnected to server with tools: ", [tool.name for tool in tools])
+        
+        # Initialize system message once when connecting
+        tool_descriptions = []
+        for tool in tools:
+            tool_descriptions.append(f"- {tool.name}: {tool.description}")
+        
+        system_message_content = "You are a helpful assistant. You have access to the following tools. Please use them when appropriate to answer the user's query. Format your response to use a tool if necessary.\nAvailable tools:\n" + "\n".join(tool_descriptions)
+        
+        self.messages = [{"role": "system", "content": system_message_content}]
 
     async def process_query(self, query: str) -> str:
         """Process a query using Deepseek and available tools"""
 
         tools_list = await self.client.list_tools()
         
-        tool_descriptions = []
-        for tool in tools_list:
-            tool_descriptions.append(f"- {tool.name}: {tool.description}")
-        
-        system_message_content = "You are a helpful assistant. You have access to the following tools. Please use them when appropriate to answer the user\\'s query. Format your response to use a tool if necessary.\\\\nAvailable tools:\\\\n" + "\\\\n".join(tool_descriptions)
-
-        # Initialize messages if not a continuation, or ensure it's correctly managed across calls
-        # For this function, messages is initialized per query
-        messages = [
-            {"role": "system", "content": system_message_content},
-            {"role": "user", "content": query}
-        ]
+        # Add user message to persistent conversation history
+        self.messages.append({"role": "user", "content": query})
 
         available_tools = [{
             "type": "function",
@@ -55,14 +55,14 @@ class MCPClient:
         response = self.chat.chat.completions.create( # Synchronous call
             model="deepseek-chat",
             tools=available_tools,
-            messages=messages
+            messages=self.messages
         )
 
         final_text = []
         assistant_message = response.choices[0].message
 
         # Append assistant's response to messages history
-        messages.append(assistant_message)
+        self.messages.append(assistant_message)
 
         if assistant_message.tool_calls:
             for tool_call in assistant_message.tool_calls:
@@ -110,7 +110,7 @@ class MCPClient:
                         print(f"Error serializing tool output for {tool_name}: {tool_output_content}. Error: {e}")
                         tool_output_content = f"Error: Could not serialize output for tool {tool_name}"
                 
-                messages.append({
+                self.messages.append({
                     "role": "tool",
                     "tool_call_id": tool_call.id,
                     "name": tool_name,
@@ -121,12 +121,12 @@ class MCPClient:
             follow_up_response = self.chat.chat.completions.create( # Synchronous call
                 model="deepseek-chat",
                 # tools=available_tools, # You might not want to allow tools in the follow-up, or you might.
-                messages=messages
+                messages=self.messages
             )
             follow_up_message = follow_up_response.choices[0].message
             
             # Append the assistant's final response to messages history
-            messages.append(follow_up_message)
+            self.messages.append(follow_up_message)
 
             if follow_up_message.content:
                 final_text.append(follow_up_message.content)
@@ -145,10 +145,17 @@ class MCPClient:
         # Assuming self.client is the MCP client instance
         return await self.client.call_tool(tool_name, tool_args)
 
+    def reset_conversation(self):
+        """Reset the conversation history, keeping only the system message"""
+        if self.messages and self.messages[0]["role"] == "system":
+            self.messages = [self.messages[0]]  # Keep only system message
+        else:
+            self.messages = []
+
     async def chat_loop(self):
         """Run an interactive chat loop"""
         print("\nMCP Client started!")
-        print("\nType your queries or 'quit' to exit.")
+        print("\nType your queries, 'reset' to clear conversation history, or 'quit' to exit.")
 
         while True:
             try:
@@ -156,6 +163,10 @@ class MCPClient:
 
                 if query.lower() == 'quit':
                     break
+                elif query.lower() == 'reset':
+                    self.reset_conversation()
+                    print("Conversation history cleared.")
+                    continue
 
                 response = await self.process_query(query)
                 print("\n" + response)
@@ -177,5 +188,4 @@ async def main():
         await client.cleanup()
 
 if __name__ == "__main__":
-    import sys
     asyncio.run(main())
