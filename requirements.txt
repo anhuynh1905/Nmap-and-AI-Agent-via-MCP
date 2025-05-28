@@ -1,7 +1,5 @@
 fastmcp
-dotenv
+python-dotenv
 python3-nmap
-asyncio
-typing
-contextlib
-langchain_openai
+flask
+openai
