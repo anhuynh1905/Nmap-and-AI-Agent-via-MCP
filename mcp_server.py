@@ -4,6 +4,7 @@ import asyncio
 import json
 
 nmap = nmap3.Nmap()
+nmapScanTechniques = nmap3.NmapScanTechniques()
 app = FastMCP(name="MyNmapMCPServer")
 
 @app.tool(
@@ -19,7 +20,7 @@ async def fast_scan(target: str) -> str:
     description="Detect the operating system of the target host",
 )
 async def os_detection(target: str) -> str:
-    scan_results = nmap.os_detection(target)
+    scan_results = nmap.nmap_os_detection(target)
     return json.dumps(scan_results)
 
 @app.tool(
@@ -27,7 +28,7 @@ async def os_detection(target: str) -> str:
     description="Detect the service version of the target host",
 )
 async def service_version(target: str) -> str:
-    scan_results = nmap.service_version(target)
+    scan_results = nmap.nmap_version(target)
     return json.dumps(scan_results)
 
 @app.tool(
@@ -44,7 +45,7 @@ async def full_scan(target: str) -> str:
     description="Perform a ping scan on the target host",
 )
 async def ping_scan(target: str) -> str:
-    scan_results = nmap.ping_scan(target)
+    scan_results = nmapScanTechniques.nmap_ping_scan(target)
     return json.dumps(scan_results)
 
 if __name__ == "__main__":
